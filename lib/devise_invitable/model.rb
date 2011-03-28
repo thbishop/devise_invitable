@@ -15,9 +15,11 @@ module Devise
     #
     #   User.find(1).invited?                               # => true/false
     #   User.invite!(:email => 'someone@example.com')       # => send invitation
+    #   User.invite_without_notification!(:email => 'someone@example.com')       # => setup user and token but don't send the invitation
     #   User.accept_invitation!(:invitation_token => '...') # => accept invitation with a token
     #   User.find(1).accept_invitation!                     # => accept invitation
     #   User.find(1).invite!                                # => reset invitation status and send invitation again
+    #   User.find(1).invite_without_notification!           # => reset invitation status but don't send the invitation again
     module Invitable
       extend ActiveSupport::Concern
 
@@ -54,12 +56,17 @@ module Devise
 
       # Reset invitation token and send invitation again
       def invite!
+        !!deliver_invitation if invite_without_notification!
+      end
+
+      # Reset invitation token but do not send invitation
+      def invite_without_notification!
         if new_record? || invited?
           @skip_password = true
           self.skip_confirmation! if self.new_record? && self.respond_to?(:skip_confirmation!)
           generate_invitation_token if self.invitation_token.nil?
           self.invitation_sent_at = Time.now.utc
-          save(:validate => self.class.validate_on_invite) && !!deliver_invitation
+          save(:validate => self.class.validate_on_invite)
         end
       end
 
@@ -126,23 +133,19 @@ module Devise
         # Attempt to find a user by it's email. If a record is not found, create a new
         # user and send invitation to it. If user is found, returns the user with an
         # email already exists error.
-        # Attributes must contain the user email, other attributes will be set in the record
+        # Attributes must contain the user email, other attributes will be set in the record.
+        # This will send the invitation email.
         def invite!(attributes={}, invited_by=nil, &block)
-          invitable = find_or_initialize_with_error_by(invite_key, attributes.delete(invite_key))
-          invitable.attributes = attributes
-          invitable.invited_by = invited_by
+          process_invite(attributes, invited_by, { :send_notification => true }, &block)
+        end
 
-          if invitable.new_record?
-            invitable.errors.clear if invitable.email.try(:match, Devise.email_regexp)
-          else
-            invitable.errors.add(invite_key, :taken) unless invitable.invited?
-          end
-
-          if invitable.errors.empty?
-            yield invitable if block_given?
-            invitable.invite!
-          end
-          invitable
+        # Attempt to find a user by it's email. If a record is not found, create a new
+        # user and send invitation to it. If user is found, returns the user with an
+        # email already exists error.
+        # Attributes must contain the user email, other attributes will be set in the record
+        # This will not send the invitiation email
+        def invite_without_notification!(attributes={}, invited_by=nil, &block)
+          process_invite(attributes, invited_by, { :send_notification => false }, &block)
         end
 
         # Attempt to find a user by it's invitation_token to set it's password.
@@ -169,6 +172,32 @@ module Devise
         Devise::Models.config(self, :validate_on_invite)
         Devise::Models.config(self, :invitation_limit)
         Devise::Models.config(self, :invite_key)
+
+        private
+        # Invites the user as appropriate (with or without notification)
+        def process_invite(attributes, invited_by=nil, options={}, &block)
+          options = { :send_notification => true }.merge(options)
+          invitable = setup_invitee(attributes, invited_by)
+
+          if invitable.errors.empty?
+            yield invitable if block_given?
+            options[:send_notification] ? invitable.invite! : invitable.invite_without_notification!
+          end
+          invitable
+        end
+        # Sets up the new record with some error checks
+        def setup_invitee(attributes={}, invited_by=nil)
+          invitable = find_or_initialize_with_error_by(invite_key, attributes.delete(invite_key))
+          invitable.attributes = attributes
+          invitable.invited_by = invited_by
+
+          if invitable.new_record?
+            invitable.errors.clear if invitable.email.try(:match, Devise.email_regexp)
+          else
+            invitable.errors.add(invite_key, :taken) unless invitable.invited?
+          end
+          invitable
+        end
       end
     end
   end

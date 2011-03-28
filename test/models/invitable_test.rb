@@ -268,4 +268,25 @@ class InvitableTest < ActiveSupport::TestCase
     assert user.has_invitations_left?
   end
 
+  test 'invite_without_notification! should not send a notification' do
+    assert_no_difference('ActionMailer::Base.deliveries.size') do
+      user = User.invite_without_notification!(:email => "valid@email.com")
+    end
+  end
+
+  test 'user.invite_without_notification! should not send a notification' do
+    user = new_user
+    assert_no_difference('ActionMailer::Base.deliveries.size') do
+      user.invite_without_notification!
+    end
+  end
+
+  test 'invite_without_notification! should allow record modification using block' do
+    invited_user = User.invite_without_notification!(:email => "valid@email.com", :username => "a"*50) do |u|
+      u.password = '123123'
+      u.password_confirmation = '123123'
+    end
+    assert_equal '123123', invited_user.reload.password
+  end
+
 end
