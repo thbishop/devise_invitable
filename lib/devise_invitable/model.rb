@@ -13,13 +13,13 @@ module Devise
     #
     # Examples:
     #
-    #   User.find(1).invited?                               # => true/false
-    #   User.invite!(:email => 'someone@example.com')       # => send invitation
-    #   User.invite_without_notification!(:email => 'someone@example.com')       # => setup user and token but don't send the invitation
-    #   User.accept_invitation!(:invitation_token => '...') # => accept invitation with a token
-    #   User.find(1).accept_invitation!                     # => accept invitation
-    #   User.find(1).invite!                                # => reset invitation status and send invitation again
-    #   User.find(1).invite_without_notification!           # => reset invitation status but don't send the invitation again
+    #   User.find(1).invited?                                               # => true/false
+    #   User.invite!(:email => 'someone@example.com')                       # => send invitation
+    #   User.invite_without_notification!(:email => 'someone@example.com')  # => create invitation; don't send the invitation
+    #   User.accept_invitation!(:invitation_token => '...')                 # => accept invitation with a token
+    #   User.find(1).accept_invitation!                                     # => accept invitation
+    #   User.find(1).invite!                                                # => reset invitation status and send invitation again
+    #   User.find(1).invite_without_notification!                           # => reset invitation; don't send the invitation again
     module Invitable
       extend ActiveSupport::Concern
 
